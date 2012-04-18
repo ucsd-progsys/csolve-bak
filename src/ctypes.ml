@@ -157,7 +157,9 @@ and effectset = effectptr SLM.t
 and 'a preldesc = { plfields   : (Index.t * 'a prefield) list
                   ; plinfo     : ldinfo }
 
-and 'a prestore = 'a preldesc Sloc.SlocMap.t * 'a precfun Sloc.SlocMap.t
+and 'a prestore = 'a preldesc Sloc.SlocMap.t
+                * 'a precfun Sloc.SlocMap.t
+                *  Hf.fapp list
 
 and 'a precfun =
     { args        : (string * 'a prectype) list;  (* arguments *)
