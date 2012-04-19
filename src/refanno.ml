@@ -64,8 +64,8 @@ type annotation =
   | Ins  of string * Sloc.t * Sloc.t    (* ptr var, ALoc, CLoc *)
   | New  of Sloc.t * Sloc.t             (* Xloc, Yloc *) 
   | NewC of Sloc.t * Sloc.t * Sloc.t    (* XLoc, Aloc, CLoc *) 
-  | HIns of Ct.refstore * Hf.ref_fapp (* [h / f(<l>, <p>)] *)
-  | HGen of Ct.refstore * Hf.ref_fapp (* [f(<l>, <p>) / h] *)
+  | HIns of Sloc.t * Sloc.t list        (* [h / f(<l>, <p>)] *)
+  | HGen of Sloc.t list * Sloc.t        (* [h / f(<l>, <p>)] *)
 
 type block_annotation = annotation list list
 type ctab = (string, Sloc.t) Hashtbl.t
