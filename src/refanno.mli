@@ -34,6 +34,9 @@ type annotation =
   | Ins  of string * Sloc.t * Sloc.t    (* ptr var, ALoc, CLoc *)
   | New  of Sloc.t * Sloc.t             (* Xloc, Yloc *) 
   | NewC of Sloc.t * Sloc.t * Sloc.t    (* XLoc, Aloc, CLoc *) 
+  | HIns of Ctypes.refstore * Heapfun.ref_fapp (* [h / f(<l>, <p>)] *)
+  | HGen of Ctypes.refstore * Heapfun.ref_fapp (* [f(<l>, <p>) / h] *)
+
 
 (* 1. block_annotation length = block length,
  * 2. annotations _precede_ corresponding instr 
