@@ -578,13 +578,13 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
       {pfld with pftype = map f typ}
     and map_desc f {plfields = flds; plinfo = info} =
       {plfields = List.map (id <**> map_field f) flds; plinfo = info}
-    and map_sto f (desc, func) = (Sloc.SlocMap.map (map_desc f) desc,
-				  Sloc.SlocMap.map (map_func f) func)
+    and map_sto f (desc, func, _) = (Sloc.SlocMap.map (map_desc f) desc,
+      Sloc.SlocMap.map (map_func f) func, [])
     and map_func f ({args=args; ret=ret; sto_in=stin; sto_out=stout} as g) =
 	{g with args    = List.map (id <**> (map f)) args;
 	        ret     = map f ret;
 	        sto_in  = map_sto f stin;
-	        sto_out  = map_sto f stout}
+	        sto_out = map_sto f stout}
 
     let d_ctype () = function
       | Int (n, i)  -> P.dprintf "int(%d, %a)" n T.R.d_refinement i
@@ -861,7 +861,7 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
   and Store: SIG.STORE = struct
     type t = T.store
 
-    let empty = (SLM.empty, SLM.empty)
+    let empty = (SLM.empty, SLM.empty, [])
 
     let map_data f =
       f |> Field.map_type |> LDesc.map |> SLM.map
@@ -869,33 +869,33 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
     let map_function f =
       SLM.map (CFun.map f)
 
-    let map_ldesc f (ds, fs) =
-      (SLM.mapi f ds, SLM.map (CFun.map_ldesc f) fs)
+    let map_ldesc f (ds, fs, _) =
+      (SLM.mapi f ds, SLM.map (CFun.map_ldesc f) fs, [])
 
     let restrict_slm_abstract m =
       SLM.filter (fun l -> const <| S.is_abstract l) m
 
     module Data = struct
-      let add (ds, fs) l ld =
+      let add (ds, fs, _) l ld =
         let _ = assert ((l = Sloc.sloc_of_any) || (not (SLM.mem l fs))) in
         if (l = Sloc.sloc_of_any) then
-          (ds, fs)
+          (ds, fs, [])
         else
-          (SLM.add l ld ds, fs)
+          (SLM.add l ld ds, fs, [])
 
-      let bindings (ds, _) =
+      let bindings (ds, _, _) =
         SLM.to_list ds
 
-      let domain (ds, _) =
+      let domain (ds, _, _) =
         SLM.domain ds
 
-      let mem (ds, _) l =
+      let mem (ds, _, _) l =
         if (l = Sloc.sloc_of_any) then
           true
         else
           SLM.mem l ds
 
-      let find (ds, _) l =
+      let find (ds, _, _) l =
         if (l = Sloc.sloc_of_any) then
           LDesc.any 
         else
@@ -907,49 +907,49 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
       let ensure_sloc sto l =
         l |> find_or_empty sto |> add sto l
 
-      let map f (ds, fs) =
-        (map_data f ds, fs)
+      let map f (ds, fs, _) =
+        (map_data f ds, fs, [])
 
-      let fold_fields f b (ds, fs) =
+      let fold_fields f b (ds, fs, _) =
         SLM.fold (fun l ld b -> LDesc.fold (fun b i pct -> f b l i pct) b ld) ds b
 
-      let fold_locs f b (ds, fs) =
+      let fold_locs f b (ds, fs, _) =
         SLM.fold f ds b
     end
 
     module Function = struct
-      let add (ds, fs) l cf =
+      let add (ds, fs, _) l cf =
         let _ = assert (not (SLM.mem l ds)) in
         let _ = assert (Sloc.is_abstract l) in
-          (ds, SLM.add l cf fs)
+          (ds, SLM.add l cf fs, [])
 
-      let bindings (_, fs) =
+      let bindings (_, fs, _) =
         SLM.to_list fs
 
-      let domain (_, fs) =
+      let domain (_, fs, _) =
         SLM.domain fs
 
-      let mem (_, fs) l =
+      let mem (_, fs, _) l =
         SLM.mem l fs
 
-      let find (_, fs) l =
+      let find (_, fs, _) l =
         SLM.find l fs
 
-      let fold_locs f b (_, fs) =
+      let fold_locs f b (_, fs, _) =
         SLM.fold f fs b
     end
 
-    let map_variances f_co f_contra (ds, fs) =
-      (map_data f_co ds, SLM.map (CFun.map_variances f_co f_contra) fs)
+    let map_variances f_co f_contra (ds, fs, _) =
+      (map_data f_co ds, SLM.map (CFun.map_variances f_co f_contra) fs, [])
 
-    let map f (ds, fs) =
-      (map_data f ds, map_function f fs)
+    let map f (ds, fs, _) =
+      (map_data f ds, map_function f fs, [])
 
     let bindings sto =
       (Data.bindings sto, Function.bindings sto)
 
-    let abstract (ds, fs) =
-      (restrict_slm_abstract ds, restrict_slm_abstract fs)
+    let abstract (ds, fs, _) =
+      (restrict_slm_abstract ds, restrict_slm_abstract fs, [])
 
     let join_effects sto effs =
       ((sto |> Data.bindings |>: fun (l, ld) -> (l, (ld, EffectSet.find effs (S.canonical l)))),
@@ -958,7 +958,7 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
     let domain sto =
       Data.domain sto ++ Function.domain sto
 
-    let mem (ds, fs) s =
+    let mem (ds, fs, _) s =
       if (s = Sloc.sloc_of_any) then
         true
       else
@@ -967,30 +967,31 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
     let subs_slm_dom subs m =
       SLM.fold (fun l d m -> SLM.add (S.Subst.apply subs l) d m) m SLM.empty
 
-    let subs_addrs subs (ds, fs) =
-      (subs_slm_dom subs ds, subs_slm_dom subs fs)
+    let subs_addrs subs (ds, fs, _) =
+      (subs_slm_dom subs ds, subs_slm_dom subs fs, [])
 
-    let subs subs (ds, fs) =
-      (SLM.map (LDesc.subs subs) ds, fs |> SLM.map (Misc.flip CFun.subs subs)) |> subs_addrs subs
+    let subs subs (ds, fs, _) =
+      (SLM.map (LDesc.subs subs) ds, fs |> SLM.map (Misc.flip CFun.subs subs),
+      []) |> subs_addrs subs
 
-    let remove (ds, fs) l =
+    let remove (ds, fs, _) l =
       if (l = Sloc.sloc_of_any) then
-        (ds, fs)
+        (ds, fs, [])
       else
-        (SLM.remove l ds, SLM.remove l fs)
+        (SLM.remove l ds, SLM.remove l fs, [])
 
-    let upd (ds1, fs1) (ds2, fs2) =
-      (SLM.fold SLM.add ds2 ds1, SLM.fold SLM.add fs2 fs1)
+    let upd (ds1, fs1, _) (ds2, fs2, _) =
+      (SLM.fold SLM.add ds2 ds1, SLM.fold SLM.add fs2 fs1, [])
 
     let partition_map f m =
-      SLM.fold begin fun l d (m1, m2) ->
-        if f l then (SLM.add l d m1, m2) else (m1, SLM.add l d m2)
-      end m (SLM.empty, SLM.empty)
+      SLM.fold begin fun l d (m1, m2, _) ->
+        if f l then (SLM.add l d m1, m2, []) else (m1, SLM.add l d m2, [])
+      end m (SLM.empty, SLM.empty, [])
 
-    let partition f (ds, fs) =
-      let ds1, ds2 = partition_map f ds in
-      let fs1, fs2 = partition_map f fs in
-        ((ds1, fs1), (ds2, fs2))
+    let partition f (ds, fs, _) =
+      let ds1, ds2, _ = partition_map f ds in
+      let fs1, fs2, _ = partition_map f fs in
+        ((ds1, fs1, []), (ds2, fs2, []))
 
     let ctype_closed t sto = match t with
       | Ref (l, _) -> mem sto l
@@ -1017,7 +1018,7 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
       |> partition (ls |> Misc.flap (reachable sto) |> Misc.sort_and_compact |> Misc.flip List.mem)
       |> fst
 
-    let rec closed globstore ((_, fs) as sto) =
+    let rec closed globstore ((_, fs, _) as sto) =
       Data.fold_fields
         (fun c _ _ fld -> c && ctype_closed (Field.type_of fld) (upd globstore sto)) true sto &&
         SLM.fold (fun _ cf c -> c && CFun.well_formed globstore cf) fs true
@@ -1025,16 +1026,16 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
     let slm_acc_list f m =
       SLM.fold (fun _ d acc -> f d ++ acc) m []
 
-    let indices (ds, fs) =
+    let indices (ds, fs, _) =
       slm_acc_list LDesc.indices ds ++ slm_acc_list CFun.indices fs
 
-    let data (ds, _) =
-      (ds, SLM.empty)
+    let data (ds, _, _) =
+      (ds, SLM.empty, [])
 
     let d_store_addrs () st =
       P.seq (P.text ",") (Sloc.d_sloc ()) (domain st)
 
-    let d_store () (ds, fs) =
+    let d_store () (ds, fs, _) =
       if fs = SLM.empty then
         P.dprintf "[@[%a@]]" (d_storelike LDesc.d_ldesc) ds
       else if ds = SLM.empty then
@@ -1399,8 +1400,8 @@ type ctemap = I.ctemap
 let null_fun      = {args = [];
                      ret  = Int (0, N.top);
                      globlocs = [];
-                     sto_in = Sloc.SlocMap.empty,Sloc.SlocMap.empty;
-                     sto_out = Sloc.SlocMap.empty,Sloc.SlocMap.empty;
+                     sto_in = Sloc.SlocMap.empty,Sloc.SlocMap.empty,[];
+                     sto_out = Sloc.SlocMap.empty,Sloc.SlocMap.empty,[];
                      effects = SLM.empty}
   
 let void_ctype   = Int  (0, N.top)

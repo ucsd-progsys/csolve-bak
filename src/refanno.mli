@@ -35,7 +35,7 @@ type annotation =
   | New  of Sloc.t * Sloc.t             (* Xloc, Yloc *) 
   | NewC of Sloc.t * Sloc.t * Sloc.t    (* XLoc, Aloc, CLoc *) 
   | HIns of Sloc.t * Sloc.t list        (* [Aloc, [loc]] *)
-  | HGen of Sloc.t * Sloc.t list        (* [[loc], Aloc] *)
+  | HGen of Sloc.t list * Sloc.t        (* [[loc], Aloc] *)
 
 
 (* 1. block_annotation length = block length,
