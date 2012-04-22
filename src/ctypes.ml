@@ -29,7 +29,6 @@ module SS  = S.SlocSet
 module N   = Index
 module C   = Cil
 module CM  = CilMisc
-module Hf  = Heapfun
 module FC  = FixConstraint
 module SM  = Misc.StringMap
 module SLM = S.SlocMap
@@ -161,7 +160,11 @@ and 'a preldesc = { plfields   : (Index.t * 'a prefield) list
 
 and 'a prestore = 'a preldesc Sloc.SlocMap.t
                 * 'a precfun Sloc.SlocMap.t
-                * 'a Hf.fapp list
+                * 'a hf_appl list
+               
+and 'a hf_appl  = string * Sloc.t list * 'a list
+
+and ref_hf_appl = FixConstraint.reft hf_appl
 
 and 'a precfun =
     { args        : (string * 'a prectype) list;  (* arguments *)
