@@ -358,7 +358,8 @@ module SIGS (T : CTYPE_DEFS) = struct
     val create        : finality -> fieldinfo -> T.ctype -> t
     val subs          : Sloc.Subst.t -> t -> t
     val map_type      : ('a prectype -> 'b prectype) -> 'a prefield -> 'b prefield
-      
+    val map2_type     : ('a prectype -> 'a prectype -> 'b prectype) ->
+                        'a prefield -> 'b prefield
     val d_field       : unit -> t -> P.doc
   end
 
@@ -383,6 +384,8 @@ module SIGS (T : CTYPE_DEFS) = struct
     val fold          : ('a -> Index.t -> T.field -> 'a) -> 'a -> t -> 'a
     val subs          : Sloc.Subst.t -> t -> t
     val map           : ('a prefield -> 'b prefield) -> 'a preldesc -> 'b preldesc
+    val map2          : ('a prefield -> 'b prefield) ->
+                        'a preldesc -> 'a preldesc -> 'b preldesc
     val mapn          : (int -> Index.t -> 'a prefield -> 'b prefield) -> 'a preldesc -> 'b preldesc
     val iter          : (Index.t -> T.field -> unit) -> t -> unit
     val indices       : t -> Index.t list
@@ -685,6 +688,10 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
     let map_type f fld =
       {fld with pftype = fld |> type_of |> f}
 
+    let map2_type f fld1 fld2 =
+      {fld1 with pftype = f <| (type_of <| fld1)
+                            <| (type_of <| fld1)}
+
     let subs sub =
       map_type (CType.subs sub)
 
@@ -771,8 +778,16 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
     let mapn f ld =
       {ld with plfields = Misc.mapi (fun n (i, fld) -> (i, f n i fld)) ld.plfields}
 
+    let map2n f ld1 ld2 =
+      let ld1p, ld2p = ld1.plfields, ld2.plfields in
+      {ld with plfields =
+        Misc.map2i (fun n (i, fld1, fld2) -> (i, f n i fld1 fld2)) ld1p ld2p}
+
     let map f flds =
       mapn (fun _ _ fld -> f fld) flds
+
+    let map2 f flds1 flds2 =
+      map2n (fun _ _ fld1 fld2 -> f fld1 fld2) flds1 flds2
 
     let subs sub ld =
       map (Field.subs sub) ld
@@ -863,6 +878,9 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
 
     let empty = (SLM.empty, SLM.empty, [])
 
+    let map2_data f =
+      f |> Field.map2_type |> LDesc.map2 |> SLM.map2
+
     let map_data f =
       f |> Field.map_type |> LDesc.map |> SLM.map
 
@@ -909,6 +927,9 @@ module Make (T: CTYPE_DEFS): S with module T = T = struct
 
       let map f (ds, fs, _) =
         (map_data f ds, fs, [])
+
+      let map2  f (ds fs, _) =
+        (map2_data f ds, fs, [])
 
       let fold_fields f b (ds, fs, _) =
         SLM.fold (fun l ld b -> LDesc.fold (fun b i pct -> f b l i pct) b ld) ds b
