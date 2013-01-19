@@ -7,7 +7,7 @@ IFLAGS=-lflags -I,$(OCAMLGRAPHHOME)
 CFLAGS=-cflags -dtypes \
        -cflags -I,$(OCAMLGRAPHHOME)
 
-TARGETS=misc.cma misc.cmxa \
+TARGETS=fixMisc.cma fixMisc.cmxa \
 	bNstats.cma bNstats.cmxa \
 	tagtime.cma tagtime.cmxa \
 	timer.cma timer.cmxa \
