@@ -6,8 +6,11 @@ README
 Prerequisites
 =============
 
-`csolve` requires a recent OCaml compiler, the GNU multiprecision library,
-and the CamlIDL library.
+`csolve` requires 
+
+- a recent OCaml compiler
+- the GNU multiprecision library, and 
+- the CamlIDL library.
 
 
 Checking Out Of Git
