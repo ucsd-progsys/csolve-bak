@@ -1,34 +1,53 @@
-PENDING
-=======
+TODO List
+=========
+
+- Write a TODO...
+
+- Write HOWTO for starting with `gnu-coreutils`
+
+- Error messages
+
+--------------------------------------------------------------------------------------------
+
+GNU-Coreutils
+=============
+
+To run a file say, `chgrp` do
+
+    external/gnu-coreutils/src/make.csolve chgrp
+
+
+
+Error Messages
+==============
 
 * chgrp   -- undo, get decent error after removing OPTARG_LOC annot.
 
-Multi-file HTML (branch: multihtml)
------------------------------------
+   
+* Go through the "Raw String" and replace with meaningful errors
+  corresponding to the function calls, derefs etc.
 
-HEREHEREHEREHERE:
-    
-    Go through the "Raw String" and replace with meaningful errors
-    corresponding to the function calls, derefs etc.
+  Hard because of fun-call subtyping?
 
-    Hard because of fun-call subtyping?
+* Nice error messages: line 223, dereference  `*tmp78` should be cleaned to
 
-Nice error messages: line 223, dereference 
-
-  *tmp78
+    `*tmp78` =====> `x->foo->bar` 
   
-  where reSugar (*tmp78) =====> x->foo->bar render error: 
+  yielding an error message: 
   
     line 223, dereference x->foo->bar not safe.
 
-- Persistent Windows on Variable Click (with same info as hover)
+HTML Demo 
+=========
+
+- Persistent windows on variable click (with same info as hover)
 
 - Links to definitions (like CTAGS): for all globvars, funs, vars(?)
 
 
-* TESTING
 
-external/gnu-coreutils/src/make.csolve chgrp
+TESTING
+=======
 
 ./csolve tests/postests/ll0.c
 
@@ -494,11 +513,10 @@ struct node <A0, C0> {
   struct node * <A0> right;
 }
 
+
+
 CoreUtils Notes
 ---------------
-
-
-
 
 
 dump vdescr from varinfo (what do they hold? can we get nicer errors than:
@@ -558,8 +576,6 @@ normal.c:186: Error: Location mismatch:
 A12[] |-> {0 + 4*}: int(4, {true})
 is not included in
 A16[] |-> {0}: int(4, {true})
-
-
 
 
 Tedious Error Messages.

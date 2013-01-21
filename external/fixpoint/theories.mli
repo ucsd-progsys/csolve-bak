@@ -17,12 +17,14 @@
  * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
  * AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE PROVIDED HEREUNDER IS 
  * ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATION 
- * TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONAst.Symbol.
- *
+ * TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *)
 
-(* val render : Format.formatter -> FixConfig.deft list -> unit 
-val render : Format.formatter -> 'a FixConfig.cfg -> unit
-*)
-val dump_smtlib : 'a FixConfig.cfg -> unit
-
+type appDef 
+type sortDef 
+val sym_sort    : appDef  -> Ast.Sort.t
+val sym_name    : appDef  -> Ast.Symbol.t
+val sort_name   : sortDef -> Ast.Sort.tycon
+val theories    : unit -> sortDef list * appDef list
+val mk_thy_sort : sortDef -> Z3.context -> Z3.sort list -> Z3.sort
+val mk_thy_app  : appDef  -> Z3.context -> Z3.sort list -> Z3.ast list -> Z3.ast

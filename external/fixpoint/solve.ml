@@ -37,6 +37,7 @@ module C  = FixConstraint
 module Ci = Cindex
 module PP = Prepass
 module Cg = FixConfig
+module Th = Theories
 
 module Misc = FixMisc open Misc.Ops
 
@@ -129,11 +130,23 @@ let log_iter_stats me s =
 (******************** Iterative Refinement *********************)
 (***************************************************************)
 
+let is_solved s c = 
+  let sol = read s in
+  c |> C.rhs_of_t 
+    |> C.kvars_of_reft
+    |> List.map (sol <.> snd)
+    |> List.for_all ((=) [])
+
 let refine_constraint s c =
   try BS.time "refine" (Dom.refine s) c with ex ->
     let _ = F.printf "constraint refinement fails with: %s\n" (Printexc.to_string ex) in
     let _ = F.printf "Failed on constraint:\n%a\n" (C.print_t None) c in
     assert false
+
+let update_worklist me s' c w' = 
+  c |> Ci.deps me.sri 
+    |> Misc.filter (not <.> is_solved s')
+    |> Ci.wpush me.sri w'
 
 let rec acsolve me w s =
   let _ = log_iter_stats me s in
@@ -143,13 +156,14 @@ let rec acsolve me w s =
       let _ = Timer.log_event me.tt (Some "Finished") in 
       s 
   | (Some c, w') ->
-      let _         = me.stat_refines += 1             in 
-      let (ch, s')  = BS.time "refine" (refine_constraint s) c in
-      let _         = hashtbl_incr_frequency me.stat_cfreqt (C.id_of_t c, ch) in  
-      let _         = Co.bprintf mydebug "iter=%d id=%d ch=%b %a \n" 
+      let _        = me.stat_refines += 1             in 
+      let (ch, s') = BS.time "refine" (refine_constraint s) c in
+      let _        = hashtbl_incr_frequency me.stat_cfreqt (C.id_of_t c, ch) in  
+      let _        = Co.bprintf mydebug "iter=%d id=%d ch=%b %a \n" 
                       !(me.stat_refines) (C.id_of_t c) ch C.print_tag (C.tag_of_t c) in
-      let w'' = if ch then Ci.deps me.sri c |> Ci.wpush me.sri w' else w' in 
+      let w''      = if ch then update_worklist me s' c w' else w' in 
       acsolve me w'' s' 
+
 
 let unsat_constraints me s =
   me.sri |> Ci.to_list |> List.filter (Dom.unsat s)
@@ -208,21 +222,25 @@ let solve me s =
   let cx = if !Co.cex && Misc.nonnull u then Dom.ctr_examples s (Ci.to_list me.sri) u else [] in
   (s, u, cx)
 
+let global_symbols cfg = 
+     (SM.to_list cfg.Cg.uops)                                           (* specified globals *) 
+  ++ (Theories.theories () |> snd |>: (Th.sym_name <*> Th.sym_sort))    (* theory globals *)
 
 (* API *)
 let create cfg kf =
-  let gts = SM.to_list cfg.Cg.uops in
+  let gts = global_symbols cfg in
   let sri = cfg.Cg.cs
             >> Co.logPrintf "Pre-Simplify Stats\n%a" print_constr_stats
             |> BS.time  "Constant Env" (List.map (C.add_consts_t gts))
             |> BS.time  "Simplify" FixSimplify.simplify_ts
             >> Co.logPrintf "Post-Simplify Stats\n%a" print_constr_stats
-            |> BS.time  "Ref Index" Ci.create cfg.Cg.ds
+            |> BS.time  "Ref Index" Ci.create cfg.Cg.kuts cfg.Cg.ds
             |> (!Co.slice <?> BS.time "Slice" Ci.slice) in
   let ws  = cfg.Cg.ws
             |> (!Co.slice <?> BS.time "slice_wf" (Ci.slice_wf sri))
             |> BS.time  "Constant EnvWF" (List.map (C.add_consts_wf gts))
             |> PP.validate_wfs in
+  let cfg = { cfg with Cg.cs = Ci.to_list sri; Cg.ws = ws } in
   let s   = if !Constants.dump_simp <> "" then Dom.empty else Dom.create cfg kf in
   let _   = Co.logPrintf "DONE: Dom.create\n" in
   let _   = Ci.to_list sri

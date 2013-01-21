@@ -69,7 +69,8 @@ module Sort =
     type sub = { locs: (int * string) list; 
                  vars: (int * t) list; }
 
-    
+   
+    let tycon_string x = x
     (*
     let is_loc_string s = 
       let re = Str.regexp "[a-zA-Z]+[0-9]+" in 
@@ -162,8 +163,14 @@ module Sort =
       | Func _ -> true
       | _   -> false
 
+    let app_of_t = function
+      | App (c, ts) -> Some (c, ts) 
+      | _           -> None
+
+
     let func_of_t = function
-      | Func (_, ts) -> Some (ts |> Misc.list_snoc |> Misc.swap)
+      | Func (i, ts) -> let (xts, t) = ts |> Misc.list_snoc |> Misc.swap in 
+                        Some (i, xts, t)
       | _            -> None
 
     let ptr_of_t = function
@@ -221,16 +228,18 @@ module Sort =
       | _        -> None
    
     let empty_sub = {vars = []; locs = []}
-    
-    let unify ats cts =
+   
+    let unifyWith s ats cts =
       let _ = asserts (List.length ats = List.length cts) "ERROR: unify sorts" in
       List.combine ats cts 
-      |> Misc.maybe_fold unifyt empty_sub
+      |> Misc.maybe_fold unifyt s 
       (* >> (fun so -> Printf.printf "unify: [%s] ~ [%s] = %s \n" 
                       (String.concat "; " (List.map to_string ats))
                       (String.concat "; " (List.map to_string cts))
                       (match so with None -> "NONE" | Some s -> sub_to_string s))
        *)
+
+    let unify = unifyWith empty_sub
 
     let apply s = 
       map begin fun t -> match t with
@@ -266,6 +275,13 @@ module Sort =
       let idx  = ts |> Misc.flap vars_of_t |> Misc.list_max (-1) |> (+) 1 in 
       let lim  = Misc.index_from idx locs |>: Misc.swap |> SM.of_list          in
       List.map (subst_locs_vars lim) ts
+
+    (* API *)
+    let sub_args s = List.sort compare s.vars
+
+    (* API *)
+    let check_arity n s = s.vars |>: fst |> Misc.sort_and_compact |> List.length |> (=) n
+      (* if ... then s else assertf "Type Inst. With Wrong Arity!" *)
 
   end
 
@@ -1087,11 +1103,12 @@ let rec sortcheck_expr f e =
   | _ -> assertf "Ast.sortcheck_expr: unhandled expr = %s" (Expression.to_string e)
 
 (* TODO: OMG! 5 levels of matching!!!!! *)
-and sortcheck_app f so_expected uf es =
+and sortcheck_app_sub f so_expected uf es =
+  let yikes uf = F.printf "sortcheck_app_sub: unknown sym = %s \n" (Symbol.to_string uf) in
   sortcheck_sym f uf
-  |> function None -> None | Some t -> 
+  |> function None -> (yikes uf; None) | Some t -> 
        Sort.func_of_t t 
-       |> function None -> None | Some (i_ts, o_t) -> 
+       |> function None -> None | Some (tyArity, i_ts, o_t) -> 
               let _  = asserts (List.length es = List.length i_ts) 
                          "ERROR: uf arg-arity error: uf=%s" uf in
               let e_ts = es |> List.map (sortcheck_expr f) |> Misc.map_partial id in
@@ -1103,11 +1120,23 @@ and sortcheck_app f so_expected uf es =
                     | Some s ->
                         let t = Sort.apply s o_t in
                           match so_expected with
-                            | None    -> Some t
+                            | None    -> Some (s, t)
                             | Some t' ->
-                                match Sort.unify [t] [t'] with
-                                  | None   -> None
-                                  | Some s -> Some (Sort.apply s t)
+                                match Sort.unifyWith s [t] [t'] with
+                                  | None    -> None
+                                  | Some s' -> Some (s', Sort.apply s' t)
+
+and sortcheck_app f so_expected uf es = 
+  sortcheck_app_sub f so_expected uf es 
+  |> Misc.maybe_map snd 
+  (* >> begin function 
+       | Some t -> Format.printf "sortcheck_app: e = %s , t = %s \n"
+                     (expr_to_string (eApp (uf, es))) (Sort.to_string t)
+       | None   -> Format.printf "sortcheck_app: e = %s FAILS\n"
+                     (expr_to_string (eApp (uf, es)))
+     end
+  *)
+
 
 
 and sortcheck_op f (e1, op, e2) = 
@@ -1163,10 +1192,19 @@ and sortcheck_pred f p =
     | And ps  
     | Or ps ->
         List.for_all (sortcheck_pred f) ps
+    
     | Atom ((Con (Constant.Int(0)),_), _, e) 
     | Atom (e, _, (Con (Constant.Int(0)),_)) 
       when not (!Constants.strictsortcheck)
-      -> not (sortcheck_expr f e = None)
+      -> not (None = sortcheck_expr f e)
+    
+    | Atom ((Var x, _) , Eq, (App (uf, es), _))
+    | Atom ((App (uf, es), _), Eq, (Var x, _))
+      -> begin match sortcheck_sym f x with 
+         | None    -> false 
+         | Some tx -> not (None = sortcheck_app f (Some tx) uf es)
+         end
+
     | Atom (e1, r, e2) ->
         sortcheck_rel f (e1, r, e2)
     | Forall (qs,p) ->
@@ -1175,8 +1213,24 @@ and sortcheck_pred f p =
         in sortcheck_pred f' p
     | _ -> failwith "Unexpected: sortcheck_pred"
 
+(* and sortcheck_pred f p =
+  sortcheck_pred' f p
+  >> (fun b -> if not b then F.eprintf "WARNING: Malformed Lhs Pred (%a)\n" Predicate.print p) 
+ *)
 
-
+let uf_arity f uf =  
+  match sortcheck_sym f uf with None -> None | Some t -> 
+    match Sort.func_of_t t with None -> None | Some (i,_,_) -> 
+      Some i
+ 
+(* API *)
+let sortcheck_app f t uf es = 
+  match uf_arity f uf, sortcheck_app_sub f t uf es with 
+    | (Some n , Some (s, t)) -> 
+        if Sort.check_arity n s then Some (s, t) else
+           assertf "Ast.sortcheck_app: type args not fully instantiated %s" 
+             (expr_to_string (eApp (uf, es)))
+    | _ -> None
 
 (*
 let sortcheck_pred f p = 
